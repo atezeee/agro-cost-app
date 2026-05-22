@@ -43,6 +43,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/operations", h.directory("operations"))
 	mux.HandleFunc("GET /api/machines", h.directory("machines"))
 	mux.HandleFunc("GET /api/operation-machines", h.operationMachines)
+	mux.HandleFunc("GET /api/operation-rules", h.operationRules)
+	mux.HandleFunc("GET /api/norms", h.norms)
+	mux.HandleFunc("GET /api/condition-coefficients", h.conditionCoefficients)
+	mux.HandleFunc("GET /api/tech-map-templates", h.techMapTemplates)
 	mux.HandleFunc("GET /api/materials", h.directory("materials"))
 	mux.HandleFunc("GET /api/cost-items", h.directory("cost_items"))
 	mux.HandleFunc("GET /api/prices", h.prices)
@@ -50,6 +54,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/prices/parse", h.requireAuth(h.parsePrices))
 	mux.HandleFunc("POST /api/prices/parse-source", h.requireAuth(h.parsePriceSource))
 	mux.HandleFunc("POST /api/prices/import-csv", h.requireAuth(h.importCSV))
+	mux.HandleFunc("POST /api/calculation-draft", h.calculationDraft)
 	mux.HandleFunc("POST /api/calculate", h.calculate(false))
 	mux.HandleFunc("POST /api/calculations", h.calculate(true))
 	mux.HandleFunc("GET /api/calculations", h.calculations)
@@ -163,6 +168,29 @@ func (h *Handler) operationMachines(w http.ResponseWriter, r *http.Request) {
 	respond(w, items, err)
 }
 
+func (h *Handler) operationRules(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Repo.ListOperationRules(r.Context())
+	respond(w, items, err)
+}
+
+func (h *Handler) norms(w http.ResponseWriter, r *http.Request) {
+	cropID, _ := strconv.ParseInt(r.URL.Query().Get("crop_id"), 10, 64)
+	operationID, _ := strconv.ParseInt(r.URL.Query().Get("operation_id"), 10, 64)
+	items, err := h.Repo.ListNorms(r.Context(), cropID, operationID)
+	respond(w, items, err)
+}
+
+func (h *Handler) conditionCoefficients(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Repo.ListConditionCoefficients(r.Context())
+	respond(w, items, err)
+}
+
+func (h *Handler) techMapTemplates(w http.ResponseWriter, r *http.Request) {
+	cropID, _ := strconv.ParseInt(r.URL.Query().Get("crop_id"), 10, 64)
+	items, err := h.Repo.ListTechMapTemplates(r.Context(), cropID)
+	respond(w, items, err)
+}
+
 func (h *Handler) prices(w http.ResponseWriter, r *http.Request) {
 	regionID, _ := strconv.ParseInt(r.URL.Query().Get("region_id"), 10, 64)
 	fdID, _ := strconv.ParseInt(r.URL.Query().Get("federal_district_id"), 10, 64)
@@ -227,6 +255,16 @@ func (h *Handler) importCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SourceID = sid
 	res, err := h.Parser.ParseCSV(r.Context(), req, file)
+	respond(w, res, err)
+}
+
+func (h *Handler) calculationDraft(w http.ResponseWriter, r *http.Request) {
+	var req models.CalculationDraftRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "некорректный JSON")
+		return
+	}
+	res, err := h.Calc.BuildDraft(r.Context(), req)
 	respond(w, res, err)
 }
 

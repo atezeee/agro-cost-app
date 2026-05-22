@@ -25,15 +25,18 @@ type Region struct {
 }
 
 type DirectoryItem struct {
-	ID           int64   `json:"id"`
-	Name         string  `json:"name"`
-	Description  string  `json:"description,omitempty"`
-	DefaultPrice float64 `json:"default_price,omitempty"`
-	RentPrice    float64 `json:"rent_price,omitempty"`
-	UnitID       int64   `json:"unit_id,omitempty"`
-	Role         string  `json:"role,omitempty"`
-	Productivity float64 `json:"productivity_ha_per_hour,omitempty"`
-	FuelRate     float64 `json:"fuel_rate_l_per_ha,omitempty"`
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Description   string  `json:"description,omitempty"`
+	DefaultPrice  float64 `json:"default_price,omitempty"`
+	RentPrice     float64 `json:"rent_price,omitempty"`
+	UnitID        int64   `json:"unit_id,omitempty"`
+	Role          string  `json:"role,omitempty"`
+	Productivity  float64 `json:"productivity_ha_per_hour,omitempty"`
+	FuelRate      float64 `json:"fuel_rate_l_per_ha,omitempty"`
+	RequiresCrop  bool    `json:"requires_crop,omitempty"`
+	ResourceType  string  `json:"resource_material_type,omitempty"`
+	ResourceTitle string  `json:"resource_title,omitempty"`
 }
 
 type Unit struct {
@@ -73,14 +76,88 @@ type PriceSnapshot struct {
 	SourceURL         string    `json:"source_url"`
 }
 
+type OperationRule struct {
+	OperationID   int64  `json:"operation_id"`
+	OperationName string `json:"operation_name"`
+	Description   string `json:"description,omitempty"`
+	RequiresCrop  bool   `json:"requires_crop"`
+	ResourceType  string `json:"resource_material_type,omitempty"`
+	ResourceTitle string `json:"resource_title,omitempty"`
+}
+
+type Norm struct {
+	ID            int64   `json:"id"`
+	CropID        int64   `json:"crop_id"`
+	CropName      string  `json:"crop_name,omitempty"`
+	OperationID   int64   `json:"operation_id"`
+	OperationName string  `json:"operation_name,omitempty"`
+	MaterialID    int64   `json:"material_id"`
+	MaterialName  string  `json:"material_name,omitempty"`
+	MaterialType  string  `json:"material_type,omitempty"`
+	Rate          float64 `json:"rate"`
+	UnitID        int64   `json:"unit_id"`
+	UnitName      string  `json:"unit_name,omitempty"`
+}
+
+type ConditionCoefficient struct {
+	ID          int64   `json:"id"`
+	GroupCode   string  `json:"group_code"`
+	GroupName   string  `json:"group_name"`
+	Name        string  `json:"name"`
+	Value       float64 `json:"value"`
+	Description string  `json:"description,omitempty"`
+}
+
+type TechMapTemplate struct {
+	ID            int64   `json:"id"`
+	CropID        int64   `json:"crop_id"`
+	CropName      string  `json:"crop_name,omitempty"`
+	OperationID   int64   `json:"operation_id"`
+	OperationName string  `json:"operation_name,omitempty"`
+	SortOrder     int     `json:"sort_order"`
+	Phase         string  `json:"phase"`
+	IsRequired    bool    `json:"is_required"`
+	AreaFactor    float64 `json:"area_factor"`
+}
+
+type CalculationDraftRequest struct {
+	CropID                  int64    `json:"crop_id"`
+	FederalDistrictID       int64    `json:"federal_district_id"`
+	AreaHa                  float64  `json:"area_ha"`
+	CalculationMode         string   `json:"calculation_mode"`
+	OperationID             int64    `json:"operation_id"`
+	MachineID               int64    `json:"machine_id"`
+	MachineUsageType        string   `json:"machine_usage_type"`
+	Productivity            float64  `json:"productivity_ha_per_hour"`
+	FuelRate                float64  `json:"fuel_rate_l_per_ha"`
+	CalculationDate         string   `json:"calculation_date,omitempty"`
+	ResourceMaterialID      int64    `json:"resource_material_id"`
+	ResourceRate            float64  `json:"resource_rate"`
+	ManualPrice             *float64 `json:"manual_price,omitempty"`
+	ConditionCoefficientIDs []int64  `json:"condition_coefficient_ids"`
+	SelectedTemplateIDs     []int64  `json:"selected_template_ids"`
+	IncludeComparison       bool     `json:"include_comparison"`
+}
+
+type CalculationDraftResult struct {
+	Rows                 []CalculationInputRow  `json:"rows"`
+	ConditionCoefficient float64                `json:"condition_coefficient"`
+	ConditionSummary     []ConditionCoefficient `json:"condition_summary,omitempty"`
+	Templates            []TechMapTemplate      `json:"templates,omitempty"`
+}
+
 type CalculationRequest struct {
-	UserID            int64                 `json:"user_id"`
-	GuestID           string                `json:"guest_id,omitempty"`
-	CropID            int64                 `json:"crop_id"`
-	FederalDistrictID int64                 `json:"federal_district_id"`
-	RegionID          int64                 `json:"region_id"`
-	AreaHa            float64               `json:"area_ha"`
-	Rows              []CalculationInputRow `json:"rows"`
+	UserID                  int64                 `json:"user_id"`
+	GuestID                 string                `json:"guest_id,omitempty"`
+	CropID                  int64                 `json:"crop_id"`
+	FederalDistrictID       int64                 `json:"federal_district_id"`
+	RegionID                int64                 `json:"region_id"`
+	AreaHa                  float64               `json:"area_ha"`
+	CalculationDate         string                `json:"calculation_date,omitempty"`
+	Rows                    []CalculationInputRow `json:"rows"`
+	CalculationMode         string                `json:"calculation_mode,omitempty"`
+	IncludeComparison       bool                  `json:"include_comparison,omitempty"`
+	ConditionCoefficientIDs []int64               `json:"condition_coefficient_ids,omitempty"`
 }
 
 type CalculationInputRow struct {
@@ -92,6 +169,14 @@ type CalculationInputRow struct {
 	Rate             float64  `json:"rate"`
 	ManualPrice      *float64 `json:"manual_price,omitempty"`
 	Coefficient      float64  `json:"coefficient"`
+	AreaFactor       float64  `json:"area_factor,omitempty"`
+}
+
+type CalculationComparison struct {
+	OwnTotal         float64 `json:"own_total"`
+	RentTotal        float64 `json:"rent_total"`
+	Delta            float64 `json:"delta"`
+	CheaperUsageType string  `json:"cheaper_usage_type"`
 }
 
 type CalculationResult struct {
@@ -107,6 +192,10 @@ type CalculationResult struct {
 	CostPerHa         float64                `json:"cost_per_ha"`
 	CreatedAt         time.Time              `json:"created_at"`
 	Rows              []CalculationResultRow `json:"rows"`
+	CalculationMode   string                 `json:"calculation_mode,omitempty"`
+	IncludeComparison bool                   `json:"include_comparison,omitempty"`
+	Comparison        *CalculationComparison `json:"comparison,omitempty"`
+	TotalMachineHours float64                `json:"total_machine_hours,omitempty"`
 }
 
 type CalculationResultRow struct {
@@ -128,6 +217,9 @@ type CalculationResultRow struct {
 	Amount             float64 `json:"amount"`
 	PriceSource        string  `json:"price_source,omitempty"`
 	PriceRegion        string  `json:"price_region,omitempty"`
+	PriceDate          string  `json:"price_date,omitempty"`
+	SourceURL          string  `json:"source_url,omitempty"`
+	AreaFactor         float64 `json:"area_factor,omitempty"`
 }
 
 type ParseRequest struct {

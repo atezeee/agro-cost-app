@@ -655,3 +655,132 @@ WHERE NOT EXISTS (
     SELECT 1 FROM price_snapshots existing
     WHERE existing.material_id=m.id AND existing.federal_district_id=fd.id AND existing.region_id IS NULL AND existing.source_id=ps.id
 );
+
+-- Расчётные правила, нормы и технологические карты.
+ALTER TABLE operations ADD COLUMN IF NOT EXISTS requires_crop BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE operations ADD COLUMN IF NOT EXISTS resource_material_type VARCHAR(100);
+ALTER TABLE operations ADD COLUMN IF NOT EXISTS resource_title VARCHAR(255);
+
+UPDATE operations SET requires_crop=false, resource_material_type=NULL, resource_title=NULL
+WHERE name IN ('Вспашка','Культивация','Лущение стерни','Боронование','Прикатывание','Междурядная обработка','Транспортировка урожая');
+UPDATE operations SET requires_crop=true, resource_material_type=NULL, resource_title=NULL
+WHERE name IN ('Уборка урожая');
+UPDATE operations SET requires_crop=true, resource_material_type='seed', resource_title='Семенной материал'
+WHERE name='Посев';
+UPDATE operations SET requires_crop=true, resource_material_type='fertilizer', resource_title='Удобрение'
+WHERE name='Внесение удобрений';
+UPDATE operations SET requires_crop=true, resource_material_type='pesticide', resource_title='Средство защиты растений'
+WHERE name='Обработка СЗР';
+
+ALTER TABLE norms ADD COLUMN IF NOT EXISTS material_type VARCHAR(100);
+CREATE INDEX IF NOT EXISTS idx_norms_lookup ON norms(crop_id, operation_id, material_type);
+
+CREATE TABLE IF NOT EXISTS condition_coefficients (
+    id SERIAL PRIMARY KEY,
+    group_code VARCHAR(50) NOT NULL,
+    group_name VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    value NUMERIC(10,4) NOT NULL CHECK(value > 0),
+    description TEXT,
+    UNIQUE(group_code, name)
+);
+
+CREATE TABLE IF NOT EXISTS tech_map_templates (
+    id SERIAL PRIMARY KEY,
+    crop_id INT NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
+    operation_id INT NOT NULL REFERENCES operations(id) ON DELETE CASCADE,
+    sort_order INT NOT NULL DEFAULT 0,
+    phase VARCHAR(100) NOT NULL DEFAULT '',
+    is_required BOOLEAN NOT NULL DEFAULT TRUE,
+    area_factor NUMERIC(10,4) NOT NULL DEFAULT 1 CHECK(area_factor >= 0),
+    UNIQUE(crop_id, operation_id)
+);
+
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS calculation_mode VARCHAR(30) NOT NULL DEFAULT 'single_operation';
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS include_comparison BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS comparison_own_total NUMERIC(14,2);
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS comparison_rent_total NUMERIC(14,2);
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS comparison_delta NUMERIC(14,2);
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS comparison_cheaper_usage_type VARCHAR(20);
+ALTER TABLE calculations ADD COLUMN IF NOT EXISTS total_machine_hours NUMERIC(14,4) NOT NULL DEFAULT 0;
+
+ALTER TABLE calculation_rows ADD COLUMN IF NOT EXISTS price_source VARCHAR(255);
+ALTER TABLE calculation_rows ADD COLUMN IF NOT EXISTS price_date DATE;
+ALTER TABLE calculation_rows ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE calculation_rows ADD COLUMN IF NOT EXISTS area_factor NUMERIC(10,4) NOT NULL DEFAULT 1;
+
+INSERT INTO cost_items(name, description) VALUES
+('Амортизация', 'Доля стоимости собственной техники'),
+('Ремонт', 'Ремонт собственной техники'),
+('Техническое обслуживание', 'ТО собственной техники')
+ON CONFLICT(name) DO NOTHING;
+
+INSERT INTO condition_coefficients(group_code, group_name, name, value, description) VALUES
+('moisture','Влажность','Нормальная влажность',1.00,'Базовые условия работы'),
+('moisture','Влажность','Повышенная влажность',1.10,'Работа после осадков или по влажной почве'),
+('moisture','Влажность','Переувлажнение',1.25,'Сложные условия движения и обработки'),
+('relief','Рельеф','Ровное поле',1.00,'Базовые условия'),
+('relief','Рельеф','Слабый уклон',1.05,'Небольшой перерасход времени и топлива'),
+('relief','Рельеф','Сложный рельеф',1.15,'Выраженные перепады и развороты'),
+('stoniness','Каменистость','Без камней',1.00,'Базовые условия'),
+('stoniness','Каменистость','Средняя каменистость',1.08,'Дополнительная нагрузка на агрегат'),
+('stoniness','Каменистость','Высокая каменистость',1.18,'Существенное снижение темпа работ'),
+('distance','Удалённость','До 5 км',1.00,'Базовые условия'),
+('distance','Удалённость','5–15 км',1.04,'Дополнительные переезды'),
+('distance','Удалённость','Более 15 км',1.10,'Значимые транспортные потери времени'),
+('complexity','Сложность','Обычная сложность',1.00,'Базовые условия'),
+('complexity','Сложность','Сложный контур поля',1.07,'Много разворотов и клиньев'),
+('complexity','Сложность','Очень сложный контур',1.16,'Существенные потери производительности')
+ON CONFLICT(group_code, name) DO UPDATE SET group_name=EXCLUDED.group_name, value=EXCLUDED.value, description=EXCLUDED.description;
+
+INSERT INTO norms(crop_id, operation_id, material_id, rate, unit_id, material_type)
+SELECT c.id, o.id, m.id,
+       CASE
+           WHEN m.name='Семена пшеницы' THEN 180
+           WHEN m.name='Семена ячменя' THEN 170
+           WHEN m.name='Семена подсолнечника' THEN 7
+           WHEN m.name='Семена кукурузы' THEN 25
+           WHEN m.name='Аммиачная селитра' THEN 100
+           WHEN m.name='Гербицид' THEN 1.2
+           ELSE 0
+       END,
+       m.unit_id,
+       m.material_type
+FROM (VALUES
+    ('Пшеница','Посев','Семена пшеницы'),
+    ('Ячмень','Посев','Семена ячменя'),
+    ('Подсолнечник','Посев','Семена подсолнечника'),
+    ('Кукуруза','Посев','Семена кукурузы'),
+    ('Пшеница','Внесение удобрений','Аммиачная селитра'),
+    ('Ячмень','Внесение удобрений','Аммиачная селитра'),
+    ('Подсолнечник','Внесение удобрений','Аммиачная селитра'),
+    ('Кукуруза','Внесение удобрений','Аммиачная селитра'),
+    ('Пшеница','Обработка СЗР','Гербицид'),
+    ('Ячмень','Обработка СЗР','Гербицид'),
+    ('Подсолнечник','Обработка СЗР','Гербицид'),
+    ('Кукуруза','Обработка СЗР','Гербицид')
+) AS v(crop_name, operation_name, material_name)
+JOIN crops c ON c.name=v.crop_name
+JOIN operations o ON o.name=v.operation_name
+JOIN materials m ON m.name=v.material_name
+ON CONFLICT(crop_id, operation_id, material_id) DO UPDATE SET rate=EXCLUDED.rate, unit_id=EXCLUDED.unit_id, material_type=EXCLUDED.material_type;
+
+INSERT INTO tech_map_templates(crop_id, operation_id, sort_order, phase, is_required, area_factor)
+SELECT c.id, o.id, v.sort_order, v.phase, v.is_required, v.area_factor
+FROM crops c
+JOIN (VALUES
+    ('Лущение стерни',10,'Послеуборочная обработка',false,1.0::numeric),
+    ('Вспашка',20,'Основная обработка почвы',true,1.0::numeric),
+    ('Боронование',30,'Закрытие влаги',false,1.0::numeric),
+    ('Культивация',40,'Предпосевная подготовка',true,1.0::numeric),
+    ('Внесение удобрений',50,'Питание',true,1.0::numeric),
+    ('Посев',60,'Посев',true,1.0::numeric),
+    ('Прикатывание',70,'После посева',false,1.0::numeric),
+    ('Обработка СЗР',80,'Защита растений',true,1.0::numeric),
+    ('Междурядная обработка',90,'Уход за посевами',false,1.0::numeric),
+    ('Уборка урожая',100,'Уборка',true,1.0::numeric),
+    ('Транспортировка урожая',110,'Логистика',false,1.0::numeric)
+) AS v(operation_name, sort_order, phase, is_required, area_factor) ON true
+JOIN operations o ON o.name=v.operation_name
+WHERE c.name IN ('Пшеница','Ячмень','Кукуруза','Подсолнечник')
+ON CONFLICT(crop_id, operation_id) DO UPDATE SET sort_order=EXCLUDED.sort_order, phase=EXCLUDED.phase, is_required=EXCLUDED.is_required, area_factor=EXCLUDED.area_factor;

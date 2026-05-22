@@ -72,7 +72,8 @@
                     </div>
                   </div>
                   <div class="step-grid premium-grid">
-                    <label class="field-card"><span>Агротехническая работа</span><select id="operation"></select></label>
+                    <label class="field-card"><span>Режим расчёта</span><select id="calcMode"><option value="single_operation">Одна операция</option><option value="tech_map">Технологическая карта</option></select></label>
+                    <label class="field-card operation-mode-only"><span>Агротехническая работа</span><select id="operation"></select></label>
                     <label class="field-card"><span>Площадь, га</span><input id="area" type="number" value="100" min="0" step="0.01"></label>
                     <label class="field-card"><span>Федеральный округ</span><select id="federalDistrict"></select></label>
                     <label class="field-card" id="cropFieldWrap"><span>Культура</span><select id="crop"></select></label>
@@ -131,6 +132,16 @@
                   <div class="machine-note" id="machineMetaText">Подберите технику для расчёта — значения нормы топлива и производительности появятся автоматически.</div>
                 </article>
 
+                <article class="inner-card elevated hide" id="techMapCard">
+                  <div class="card-title-row">
+                    <div>
+                      <h3>Операции технологической карты</h3>
+                      <p>Обязательные операции включены всегда, необязательные можно исключить перед расчётом.</p>
+                    </div>
+                  </div>
+                  <div class="tech-map-list" id="techMapList"></div>
+                </article>
+
                 <aside class="smart-sidebar">
                   <article class="inner-card elevated" id="resourceCard">
                     <div class="card-title-row">
@@ -142,9 +153,20 @@
                     <div class="step-grid compact-grid one-column-grid">
                       <label class="field-card"><span>Ресурс</span><select id="material"></select></label>
                       <label class="field-card"><span>Норма расхода</span><input id="resourceRate" type="number" min="0" step="0.01"></label>
-                      <label class="field-card"><span>Коэффициент условий</span><input id="coefficient" type="number" value="1" min="0" step="0.01"></label>
                       <label class="field-card"><span>Цена вручную</span><input id="manualPrice" type="number" placeholder="необязательно" min="0" step="0.01"></label>
                     </div>
+                  </article>
+
+                  <article class="inner-card elevated">
+                    <div class="card-title-row">
+                      <div>
+                        <h3>Коэффициенты условий</h3>
+                        <p>Итоговый коэффициент применяется к нормам расхода и машино-часам.</p>
+                      </div>
+                    </div>
+                    <div class="condition-grid" id="conditionCoefficientFields"></div>
+                    <div class="machine-note">Итоговый коэффициент: <strong id="conditionCoefficientTotal">1,00</strong></div>
+                    <label class="switch-row"><input type="checkbox" id="includeComparison"><span>Сравнить с арендой</span></label>
                   </article>
 
                   <article class="inner-card soft-card">

@@ -291,3 +291,45 @@ th{position:sticky;top:0;z-index:1}
   .panel,.hero-main,.hero-facts{box-shadow:none;border:0}
   .view{display:block}.view:not(.active){display:none}
 }
+
+.condition-grid,
+.tech-map-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tech-map-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tech-map-item small,
+.comparison-box small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.comparison-box {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.comparison-box > div {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+@media (max-width:760px){
+  .comparison-box { grid-template-columns: 1fr; }
+}

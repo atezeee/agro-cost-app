@@ -5,7 +5,7 @@ const state = {
   currentUser: null,
   authMode: 'login',
   settings: {},
-  federalDistricts: [], crops: [], operations: [], materials: [], machines: [], operationMachines: [], costItems: [], prices: [], history: [], lastResult: null, autoSaving: false, selectedDetail: null
+  federalDistricts: [], crops: [], operations: [], operationRules: [], norms: [], conditionCoefficients: [], techMapTemplates: [], materials: [], machines: [], operationMachines: [], costItems: [], prices: [], history: [], lastResult: null, autoSaving: false, selectedDetail: null
 };
 
 const titles = {
@@ -23,20 +23,6 @@ const defaultSettings = {
   autosaveHistory: true,
   showHints: true,
   defaultCropId: ''
-};
-
-const operationRules = {
-  'посев': { resource: 'seed', title: 'Семенной материал', rate: 180, showCrop: true, description: 'Для посева учитываются семенной материал, техника, топливо и труд.' },
-  'внесение удобрений': { resource: 'fertilizer', title: 'Удобрение', rate: 100, showCrop: true, description: 'Для внесения удобрений учитываются удобрения, техника, топливо и труд.' },
-  'обработка сзр': { resource: 'pesticide', title: 'Средство защиты растений', rate: 1.2, showCrop: true, description: 'Для обработки СЗР учитываются средства защиты растений, техника, топливо и труд.' },
-  'вспаш': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для основной обработки почвы культура не влияет на состав затрат и скрывается из формы.' },
-  'культивац': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для культивации достаточно указать работу, площадь, округ и технику.' },
-  'лущ': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для лущения стерни расчёт строится на технике, топливе и труде.' },
-  'борон': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для боронования культура не обязательна, поэтому форма упрощается.' },
-  'прикатыв': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для прикатывания учитываются техника, топливо и труд.' },
-  'междуряд': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для междурядной обработки культура в форме не запрашивается, расчёт остаётся быстрым и удобным.' },
-  'уборк': { resource: null, title: '', rate: 0, showCrop: true, description: 'Для уборки важны техника, топливо и труд. Культура используется как идентификатор расчёта.' },
-  'транспорт': { resource: null, title: '', rate: 0, showCrop: false, description: 'Для транспортировки культуры выбор культуры не обязателен.' }
 };
 
 async function api(url, options = {}) {
@@ -72,8 +58,27 @@ function saveSettingsState() {
 
 function selectedOperationName() { return nameById(state.operations, $('operation')?.value); }
 function getOperationRule() {
-  const name = selectedOperationName().toLowerCase();
-  return Object.entries(operationRules).find(([key]) => name.includes(key))?.[1] || { resource: null, title: '', rate: 0, showCrop: true, description: 'Заполните необходимые данные по выбранной работе.' };
+  const opID = Number($('operation')?.value || 0);
+  const rule = state.operationRules.find(x => Number(x.operation_id) === opID);
+  if (!rule) return { resource: null, title: '', rate: 0, showCrop: true, description: 'Заполните необходимые данные по выбранной работе.' };
+  const norm = normFor(opID, rule.resource_material_type);
+  return { resource: rule.resource_material_type || null, title: rule.resource_title || '', rate: norm?.rate || 0, showCrop: rule.requires_crop, description: rule.description || 'Заполните необходимые данные по выбранной работе.' };
+}
+
+function normFor(operationID, materialType) {
+  if (!materialType) return null;
+  const cropID = Number($('crop')?.value || 0);
+  return state.norms.find(x => Number(x.crop_id) === cropID && Number(x.operation_id) === Number(operationID) && x.material_type === materialType)
+    || state.norms.find(x => Number(x.operation_id) === Number(operationID) && x.material_type === materialType)
+    || null;
+}
+
+function selectedConditionCoefficientIds() {
+  return Array.from(document.querySelectorAll('[data-condition-coefficient]')).map(x => Number(x.value || 0)).filter(Boolean);
+}
+
+function selectedConditionCoefficientValue() {
+  return selectedConditionCoefficientIds().reduce((acc, id) => acc * Number(state.conditionCoefficients.find(x => Number(x.id) === id)?.value || 1), 1);
 }
 
 function setView(view) {
@@ -170,6 +175,39 @@ async function loadOperationMachines() {
   updateMachineFields();
 }
 
+async function loadTechMapTemplates() {
+  const cropID = Number($('crop')?.value || 0);
+  if (!cropID) return;
+  state.techMapTemplates = await api(`/api/tech-map-templates?crop_id=${cropID}`);
+  renderTechMapTemplates();
+}
+
+function renderTechMapTemplates() {
+  const box = $('techMapList');
+  if (!box) return;
+  if ($('calcMode')?.value !== 'tech_map') {
+    box.innerHTML = '';
+    return;
+  }
+  const rows = (state.techMapTemplates || []).map(t => `<label class="tech-map-item"><input type="checkbox" data-tech-template value="${t.id}" ${t.is_required ? 'checked disabled' : 'checked'}><span><strong>${t.operation_name}</strong><small>${t.phase || 'Этап работ'}${t.is_required ? ' · обязательно' : ' · опционально'}</small></span><small>${num(t.area_factor || 1, 2)}x</small></label>`).join('');
+  box.innerHTML = rows || '<div class="empty-state">Для выбранной культуры пока нет шаблона технологической карты.</div>';
+}
+
+function renderConditionCoefficientFields() {
+  const box = $('conditionCoefficientFields');
+  if (!box) return;
+  const groups = {};
+  (state.conditionCoefficients || []).forEach(item => { (groups[item.group_code] ||= { name: item.group_name, items: [] }).items.push(item); });
+  box.innerHTML = Object.entries(groups).map(([code, group]) => `<label class="field-card"><span>${group.name}</span><select data-condition-coefficient="${code}">${group.items.map(x => `<option value="${x.id}">${x.name} (${num(x.value, 2)})</option>`).join('')}</select></label>`).join('');
+  box.querySelectorAll('select').forEach(x => x.addEventListener('change', updateConditionCoefficientTotal));
+  updateConditionCoefficientTotal();
+}
+
+function updateConditionCoefficientTotal() {
+  const el = $('conditionCoefficientTotal');
+  if (el) el.textContent = num(selectedConditionCoefficientValue(), 2);
+}
+
 function materialByType(type, fallback) {
   const items = state.materials || [];
   const cropName = nameById(state.crops, $('crop').value).toLowerCase();
@@ -192,6 +230,11 @@ function priceForMaterial(materialID) {
 }
 
 function applyCropVisibility() {
+  if ($('calcMode')?.value === 'tech_map') {
+    $('cropFieldWrap').classList.remove('hide');
+    updateSelectionSummary();
+    return;
+  }
   const rule = getOperationRule();
   const wrap = $('cropFieldWrap');
   wrap.classList.toggle('hide', !rule.showCrop);
@@ -226,23 +269,28 @@ function defaultFuelRate() {
 
 function updateSelectionSummary() {
   const rule = getOperationRule();
-  $('summaryOperationName').textContent = selectedOperationName() || 'Выберите операцию';
-  $('summaryOperationDescription').textContent = rule.description || 'После выбора операции сервис покажет только релевантные параметры.';
+  const isTechMap = $('calcMode')?.value === 'tech_map';
+  $('summaryOperationName').textContent = isTechMap ? 'Технологическая карта культуры' : (selectedOperationName() || 'Выберите операцию');
+  $('summaryOperationDescription').textContent = isTechMap ? 'Сервис сформирует цепочку операций по шаблону выбранной культуры.' : (rule.description || 'После выбора операции сервис покажет только релевантные параметры.');
   $('summaryFD').textContent = activeFDName() || '—';
   $('summaryArea').textContent = `${num($('area')?.value || 0, 2)} га`;
-  $('summaryCrop').textContent = rule.showCrop ? (nameById(state.crops, $('crop')?.value) || '—') : 'Не требуется';
-  $('workSummaryOp').textContent = selectedOperationName() || '—';
+  $('summaryCrop').textContent = (isTechMap || rule.showCrop) ? (nameById(state.crops, $('crop')?.value) || '—') : 'Не требуется';
+  $('workSummaryOp').textContent = isTechMap ? 'Технологическая карта' : (selectedOperationName() || '—');
   $('workSummaryFD').textContent = activeFDName() || '—';
   $('workSummaryArea').textContent = `${num($('area')?.value || 0, 2)} га`;
-  $('workSummaryCrop').textContent = rule.showCrop ? (nameById(state.crops, $('crop')?.value) || '—') : 'Не требуется';
+  $('workSummaryCrop').textContent = (isTechMap || rule.showCrop) ? (nameById(state.crops, $('crop')?.value) || '—') : 'Не требуется';
 }
 
 function updateSmartFields() {
-  $('workDataTitle').textContent = selectedOperationName() || 'Исходные данные по работе';
+  updateModeUI();
+  $('workDataTitle').textContent = $('calcMode')?.value === 'tech_map' ? 'Исходные данные технологической карты' : (selectedOperationName() || 'Исходные данные по работе');
   const rule = getOperationRule();
   $('workDataSubtitle').textContent = rule.description || 'Поля подобраны исходя из выбранной агротехнической работы.';
   const resourceCard = $('resourceCard');
-  if (rule.resource) {
+  if ($('calcMode')?.value === 'tech_map') {
+    resourceCard.classList.add('hide');
+    $('resourceRate').value = 0;
+  } else if (rule.resource) {
     resourceCard.classList.remove('hide');
     $('resourceTitle').textContent = rule.title;
     const mat = materialByType(rule.resource);
@@ -257,8 +305,16 @@ function updateSmartFields() {
   updateSelectionSummary();
 }
 
+function updateModeUI() {
+  const isTechMap = $('calcMode')?.value === 'tech_map';
+  document.querySelectorAll('.operation-mode-only').forEach(x => x.classList.toggle('hide', isTechMap));
+  $('techMapCard')?.classList.toggle('hide', !isTechMap);
+  renderTechMapTemplates();
+}
+
 function validateStep1() {
-  if (!$('operation').value) return toast('Выберите агротехническую работу', true), false;
+  if ($('calcMode')?.value !== 'tech_map' && !$('operation').value) return toast('Выберите агротехническую работу', true), false;
+  if ($('calcMode')?.value === 'tech_map' && !$('crop').value) return toast('Выберите культуру для технологической карты', true), false;
   if (Number($('area').value || 0) <= 0) return toast('Площадь должна быть больше нуля', true), false;
   return true;
 }
@@ -272,32 +328,32 @@ function row(operationID, material, costItem, rate, opts = {}) {
 
 async function buildSmartRows() {
   if (!validateStep1()) return;
-  const opID = Number($('operation').value);
-  const productivity = Number($('productivity').value || 0) || 1;
-  const hoursPerHa = 1 / productivity;
-  const rows = [];
-  const fuel = materialNamed('Дизельное топливо');
-  const fuelItem = costItemByName('топливо');
-  rows.push(row(opID, fuel, fuelItem, Number($('fuelRate').value || 0)));
-  const labor = materialNamed('Труд механизатора');
-  const laborItem = costItemByName('оплата');
-  rows.push(row(opID, labor, laborItem, hoursPerHa));
-  const machineMat = $('machineUsage').value === 'rent' ? (materialNamed('Аренда техники') || materialNamed('Машино-час')) : materialNamed('Машино-час');
-  const machineItem = costItemByName('техник');
-  rows.push(row(opID, machineMat, machineItem, hoursPerHa));
-  const rule = getOperationRule();
-  if (rule && rule.resource && Number($('resourceRate').value || 0) > 0) {
-    const mat = itemById(state.materials, $('material').value);
-    let item = costItemByName('семена');
-    if (rule.resource === 'fertilizer') item = costItemByName('удобр');
-    if (rule.resource === 'pesticide') item = costItemByName('защит');
-    rows.push(row(opID, mat, item, Number($('resourceRate').value || 0), { manualPrice: $('manualPrice').value }));
-  }
-  state.rows = rows.filter(Boolean);
-  renderRows();
-  updateMetrics();
-  setStep(3);
-  if (state.settings.autosaveHistory) await autoSaveCalculation();
+  try {
+    const payload = {
+      crop_id: Number($('crop').value),
+      federal_district_id: Number($('federalDistrict').value),
+      area_ha: Number($('area').value),
+      calculation_date: $('calcDate')?.value || '',
+      calculation_mode: $('calcMode').value,
+      operation_id: Number($('operation').value || 0),
+      machine_id: Number($('machine').value || 0),
+      machine_usage_type: $('machineUsage').value,
+      productivity_ha_per_hour: Number($('productivity').value || 0),
+      fuel_rate_l_per_ha: Number($('fuelRate').value || 0),
+      resource_material_id: Number($('material').value || 0),
+      resource_rate: Number($('resourceRate').value || 0),
+      manual_price: $('manualPrice').value ? Number($('manualPrice').value) : undefined,
+      condition_coefficient_ids: selectedConditionCoefficientIds(),
+      selected_template_ids: Array.from(document.querySelectorAll('[data-tech-template]:checked')).map(x => Number(x.value)),
+      include_comparison: $('includeComparison').checked
+    };
+    const draft = await api('/api/calculation-draft', { method: 'POST', body: JSON.stringify(payload) });
+    state.rows = draft.rows || [];
+    renderRows();
+    await calculate(false, { silent: true });
+    setStep(3);
+    if (state.settings.autosaveHistory) await autoSaveCalculation();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function autoSaveCalculation() {
@@ -327,12 +383,22 @@ function rowEstimate(r) {
   const costItemName = nameById(state.costItems, r.cost_item_id).toLowerCase();
   let price = r.manual_price ?? p?.price ?? 0;
   let src = p ? sourceLabel(p.source_name) : 'Резервная база цен';
-  if (costItemName.includes('техник')) {
+  let date = p?.effective_date ? new Date(p.effective_date).toLocaleDateString('ru-RU') : '—';
+  if (costItemName.includes('техник') || costItemName.includes('амортизац') || costItemName.includes('ремонт') || costItemName.includes('обслуж')) {
     if (r.machine_usage_type === 'rent') { price = machine?.rent_price || price; src = 'Арендная ставка техники'; }
-    else { price = machine?.default_price || price; src = 'Стоимость собственной техники'; }
+    else {
+      const base = machine?.default_price || price;
+      if (costItemName.includes('амортизац')) price = base * 0.5;
+      else if (costItemName.includes('ремонт')) price = base * 0.3;
+      else if (costItemName.includes('обслуж')) price = base * 0.2;
+      else price = base;
+      src = 'Справочник техники';
+    }
+    date = $('calcDate')?.value ? new Date($('calcDate').value).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU');
   }
-  const quantity = area * Number(r.rate || 0) * Number(r.coefficient || 1);
-  return { quantity, price, amount: quantity * Number(price || 0), source: src };
+  if (r.manual_price !== undefined) { src = 'Ручной ввод'; date = $('calcDate')?.value ? new Date($('calcDate').value).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU'); }
+  const quantity = area * Number(r.area_factor || 1) * Number(r.rate || 0) * Number(r.coefficient || 1);
+  return { quantity, price, amount: quantity * Number(price || 0), source: src, date };
 }
 
 function renderRows() {
@@ -341,17 +407,37 @@ function renderRows() {
   const rows = state.rows.map((r, i) => {
     const est = rowEstimate(r); total += est.amount;
     const usage = r.machine_usage_type === 'rent' ? '<span class="badge rent">Аренда</span>' : '<span class="badge own">Своя техника</span>';
-    return `<tr><td>${i + 1}</td><td>${nameById(state.operations, r.operation_id)}</td><td>${nameById(state.machines, r.machine_id) || nameById(state.operationMachines, r.machine_id) || '—'}</td><td>${usage}</td><td>${nameById(state.costItems, r.cost_item_id)}</td><td>${nameById(state.materials, r.material_id)}</td><td>${num(r.rate, 2)}</td><td>${num(est.price, 2)}<div class="price-source">${est.source}</div></td><td>${num(est.quantity, 2)}</td><td><strong>${rub(est.amount)}</strong></td></tr>`;
+    return `<tr><td>${i + 1}</td><td>${nameById(state.operations, r.operation_id)}</td><td>${nameById(state.machines, r.machine_id) || nameById(state.operationMachines, r.machine_id) || '—'}</td><td>${usage}</td><td>${nameById(state.costItems, r.cost_item_id)}</td><td>${nameById(state.materials, r.material_id)}</td><td>${num(r.rate, 2)}</td><td>${num(est.price, 2)}<div class="price-source">${est.source}</div></td><td>${est.date}</td><td>${num(est.quantity, 2)}</td><td><strong>${rub(est.amount)}</strong></td></tr>`;
   }).join('');
-  $('rowsBox').innerHTML = `<div class="table-wrap"><table><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="9">Итого</td><td>${rub(total)}</td></tr></tfoot></table></div>`;
+  const comparison = comparisonHtml(state.lastResult?.comparison);
+  $('rowsBox').innerHTML = `${comparison}<div class="table-wrap"><table><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена / источник</th><th>Дата цены</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="10">Итого</td><td>${rub(total)}</td></tr></tfoot></table></div>`;
 }
 
-function requestPayload() { return { crop_id: Number($('crop').value), federal_district_id: Number($('federalDistrict').value), region_id: 0, area_ha: Number($('area').value), rows: state.rows }; }
+function comparisonHtml(comparison) {
+  if (!comparison) return '';
+  const cheaper = comparison.cheaper_usage_type === 'rent' ? 'аренда' : 'своя техника';
+  return `<div class="comparison-box"><div><small>Своя техника</small><strong>${rub(comparison.own_total)}</strong></div><div><small>Аренда</small><strong>${rub(comparison.rent_total)}</strong></div><div><small>Выгоднее</small><strong>${cheaper}, разница ${rub(Math.abs(comparison.delta))}</strong></div></div>`;
+}
+
+function requestPayload() {
+  return {
+    crop_id: Number($('crop').value),
+    federal_district_id: Number($('federalDistrict').value),
+    region_id: 0,
+    area_ha: Number($('area').value),
+    calculation_date: $('calcDate')?.value || '',
+    calculation_mode: $('calcMode')?.value || 'single_operation',
+    include_comparison: Boolean($('includeComparison')?.checked),
+    condition_coefficient_ids: selectedConditionCoefficientIds(),
+    rows: state.rows
+  };
+}
 async function calculate(save, opts = {}) {
   try {
     if (!state.rows.length) return;
     const result = await api(save ? '/api/calculations' : '/api/calculate', { method: 'POST', body: JSON.stringify(requestPayload()) });
     state.lastResult = result;
+    renderRows();
     updateMetrics(result);
     if (save) { await loadHistory(); if (!opts.silent) toast('Расчёт сохранён'); }
     else if (!opts.silent) toast('Расчёт выполнен');
@@ -390,7 +476,7 @@ async function openCalculationDetail(id) {
     const detail = await api(`/api/calculations/${id}`);
     state.selectedDetail = detail;
     const rows = detailRowsHtml(detail);
-    $('detailModalBody').innerHTML = `<div class="detail-summary"><div><small>Дата</small><strong>${new Date(detail.created_at).toLocaleString('ru-RU')}</strong></div><div><small>Культура</small><strong>${detail.crop_name || '—'}</strong></div><div><small>Федеральный округ</small><strong>${detail.federal_district || detail.region_name || '—'}</strong></div><div><small>Площадь</small><strong>${num(detail.area_ha, 2)} га</strong></div><div><small>Общая стоимость</small><strong>${rub(detail.total_cost)}</strong></div><div><small>Стоимость на 1 га</small><strong>${rub(detail.cost_per_ha)}/га</strong></div></div><div class="table-wrap"><table><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип</th><th>Статья</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="9">Итого</td><td>${rub(detail.total_cost)}</td></tr></tfoot></table></div>`;
+    $('detailModalBody').innerHTML = `<div class="detail-summary"><div><small>Дата</small><strong>${new Date(detail.created_at).toLocaleString('ru-RU')}</strong></div><div><small>Культура</small><strong>${detail.crop_name || '—'}</strong></div><div><small>Федеральный округ</small><strong>${detail.federal_district || detail.region_name || '—'}</strong></div><div><small>Площадь</small><strong>${num(detail.area_ha, 2)} га</strong></div><div><small>Общая стоимость</small><strong>${rub(detail.total_cost)}</strong></div><div><small>Стоимость на 1 га</small><strong>${rub(detail.cost_per_ha)}/га</strong></div></div>${comparisonHtml(detail.comparison)}<div class="table-wrap"><table><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип</th><th>Статья</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Источник</th><th>Дата цены</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="11">Итого</td><td>${rub(detail.total_cost)}</td></tr></tfoot></table></div>`;
     $('exportDetailBtn')?.remove();
     const btn = document.createElement('button');
     btn.id = 'exportDetailBtn';
@@ -403,7 +489,7 @@ async function openCalculationDetail(id) {
 }
 
 function detailRowsHtml(detail) {
-  return (detail.rows || []).map((r, i) => `<tr><td>${i + 1}</td><td>${r.operation_name || '—'}</td><td>${r.machine_name || '—'}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${r.cost_item_name || '—'}</td><td>${r.material_name || '—'}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${num(r.quantity, 2)}</td><td><strong>${rub(r.amount)}</strong></td></tr>`).join('') || '<tr><td colspan="10">Нет строк расчёта</td></tr>';
+  return (detail.rows || []).map((r, i) => `<tr><td>${i + 1}</td><td>${r.operation_name || '—'}</td><td>${r.machine_name || '—'}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${r.cost_item_name || '—'}</td><td>${r.material_name || '—'}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${r.price_source || r.machine_price_source || '—'}</td><td>${formatDate(r.price_date)}</td><td>${num(r.quantity, 2)}</td><td><strong>${rub(r.amount)}</strong></td></tr>`).join('') || '<tr><td colspan="12">Нет строк расчёта</td></tr>';
 }
 
 async function deleteCalculation(id) {
@@ -418,11 +504,12 @@ async function deleteCalculation(id) {
 
 function download(name, content, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); URL.revokeObjectURL(a.href); }
 function esc(v) { return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); }
+function formatDate(v) { return v ? new Date(v).toLocaleDateString('ru-RU') : '—'; }
 function excelHeader(title) { return `<html><head><meta charset="utf-8"></head><body><h2>${esc(title)}</h2>`; }
 function exportDetailExcel(detail) {
   const summary = `<table><tr><th>Дата</th><td>${new Date(detail.created_at).toLocaleString('ru-RU')}</td></tr><tr><th>Культура</th><td>${esc(detail.crop_name || '')}</td></tr><tr><th>Федеральный округ</th><td>${esc(detail.federal_district || detail.region_name || '')}</td></tr><tr><th>Площадь, га</th><td>${num(detail.area_ha, 2)}</td></tr><tr><th>Общая стоимость</th><td>${num(detail.total_cost, 2)}</td></tr><tr><th>Стоимость на 1 га</th><td>${num(detail.cost_per_ha, 2)}</td></tr></table><br>`;
-  const rows = (detail.rows || []).map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.operation_name || '')}</td><td>${esc(r.machine_name || '')}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${esc(r.cost_item_name || '')}</td><td>${esc(r.material_name || '')}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${num(r.quantity, 2)}</td><td>${num(r.amount, 2)}</td></tr>`).join('');
-  const table = `<table border="1"><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип техники</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="9">Итого</td><td>${num(detail.total_cost, 2)}</td></tr></tfoot></table>`;
+  const rows = (detail.rows || []).map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.operation_name || '')}</td><td>${esc(r.machine_name || '')}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${esc(r.cost_item_name || '')}</td><td>${esc(r.material_name || '')}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${esc(r.price_source || r.machine_price_source || '')}</td><td>${formatDate(r.price_date)}</td><td>${num(r.quantity, 2)}</td><td>${num(r.amount, 2)}</td></tr>`).join('');
+  const table = `<table border="1"><thead><tr><th>№</th><th>Работа</th><th>Техника</th><th>Тип техники</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Источник цены</th><th>Дата цены</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="11">Итого</td><td>${num(detail.total_cost, 2)}</td></tr></tfoot></table>`;
   download(`agrocalc-calculation-${detail.id}.xls`, excelHeader(`Детализация расчёта №${detail.id}`) + summary + table + '</body></html>', 'application/vnd.ms-excel;charset=utf-8');
 }
 async function exportOneDetailedExcel(id) {
@@ -437,13 +524,13 @@ async function exportAllDetailedExcel() {
     const details = [];
     for (const c of state.history) details.push(await api(`/api/calculations/${c.id}`));
     let html = excelHeader('Детализированная выгрузка всех расчётов');
-    html += `<table border="1"><thead><tr><th>№ расчёта</th><th>Дата</th><th>Культура</th><th>Федеральный округ</th><th>Площадь, га</th><th>Общая стоимость</th><th>Стоимость на 1 га</th><th>№ строки</th><th>Работа</th><th>Техника</th><th>Тип техники</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>`;
+    html += `<table border="1"><thead><tr><th>№ расчёта</th><th>Дата</th><th>Культура</th><th>Федеральный округ</th><th>Площадь, га</th><th>Общая стоимость</th><th>Стоимость на 1 га</th><th>№ строки</th><th>Работа</th><th>Техника</th><th>Тип техники</th><th>Статья затрат</th><th>Ресурс</th><th>Норма</th><th>Цена</th><th>Источник цены</th><th>Дата цены</th><th>Количество</th><th>Сумма</th></tr></thead><tbody>`;
     for (const d of details) {
       if (!d.rows || !d.rows.length) {
-        html += `<tr><td>${d.id}</td><td>${new Date(d.created_at).toLocaleString('ru-RU')}</td><td>${esc(d.crop_name || '')}</td><td>${esc(d.federal_district || d.region_name || '')}</td><td>${num(d.area_ha, 2)}</td><td>${num(d.total_cost, 2)}</td><td>${num(d.cost_per_ha, 2)}</td><td colspan="10">Нет строк</td></tr>`;
+        html += `<tr><td>${d.id}</td><td>${new Date(d.created_at).toLocaleString('ru-RU')}</td><td>${esc(d.crop_name || '')}</td><td>${esc(d.federal_district || d.region_name || '')}</td><td>${num(d.area_ha, 2)}</td><td>${num(d.total_cost, 2)}</td><td>${num(d.cost_per_ha, 2)}</td><td colspan="12">Нет строк</td></tr>`;
       }
       (d.rows || []).forEach((r, i) => {
-        html += `<tr><td>${d.id}</td><td>${new Date(d.created_at).toLocaleString('ru-RU')}</td><td>${esc(d.crop_name || '')}</td><td>${esc(d.federal_district || d.region_name || '')}</td><td>${num(d.area_ha, 2)}</td><td>${num(d.total_cost, 2)}</td><td>${num(d.cost_per_ha, 2)}</td><td>${i + 1}</td><td>${esc(r.operation_name || '')}</td><td>${esc(r.machine_name || '')}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${esc(r.cost_item_name || '')}</td><td>${esc(r.material_name || '')}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${num(r.quantity, 2)}</td><td>${num(r.amount, 2)}</td></tr>`;
+        html += `<tr><td>${d.id}</td><td>${new Date(d.created_at).toLocaleString('ru-RU')}</td><td>${esc(d.crop_name || '')}</td><td>${esc(d.federal_district || d.region_name || '')}</td><td>${num(d.area_ha, 2)}</td><td>${num(d.total_cost, 2)}</td><td>${num(d.cost_per_ha, 2)}</td><td>${i + 1}</td><td>${esc(r.operation_name || '')}</td><td>${esc(r.machine_name || '')}</td><td>${r.machine_usage_type === 'rent' ? 'Аренда' : 'Своя'}</td><td>${esc(r.cost_item_name || '')}</td><td>${esc(r.material_name || '')}</td><td>${num(r.rate, 2)}</td><td>${num(r.price, 2)}</td><td>${esc(r.price_source || r.machine_price_source || '')}</td><td>${formatDate(r.price_date)}</td><td>${num(r.quantity, 2)}</td><td>${num(r.amount, 2)}</td></tr>`;
       });
     }
     html += '</tbody></table></body></html>';
@@ -493,8 +580,8 @@ async function init() {
     loadSettingsState();
     $('calcDate').valueAsDate = new Date();
     await refreshAuth();
-    const [fds, crops, operations, materials, machines, costItems] = await Promise.all([api('/api/federal-districts'), api('/api/crops'), api('/api/operations'), api('/api/materials'), api('/api/machines'), api('/api/cost-items')]);
-    Object.assign(state, { federalDistricts: fds || [], crops: crops || [], operations: operations || [], materials: materials || [], machines: machines || [], costItems: costItems || [] });
+    const [fds, crops, operations, operationRules, norms, conditionCoefficients, materials, machines, costItems] = await Promise.all([api('/api/federal-districts'), api('/api/crops'), api('/api/operations'), api('/api/operation-rules'), api('/api/norms'), api('/api/condition-coefficients'), api('/api/materials'), api('/api/machines'), api('/api/cost-items')]);
+    Object.assign(state, { federalDistricts: fds || [], crops: crops || [], operations: operations || [], operationRules: operationRules || [], norms: norms || [], conditionCoefficients: conditionCoefficients || [], materials: materials || [], machines: machines || [], costItems: costItems || [] });
     $('federalDistrict').innerHTML = optionHtml(state.federalDistricts);
     $('crop').innerHTML = optionHtml(state.crops);
     $('operation').innerHTML = optionHtml(state.operations);
@@ -505,6 +592,8 @@ async function init() {
       if (yufo) $('federalDistrict').value = yufo.id;
     }
     await loadPrices();
+    renderConditionCoefficientFields();
+    await loadTechMapTemplates();
     await loadOperationMachines();
     updateSmartFields();
     renderRows(); updateMetrics(); loadHistory(); renderSettings(); renderHelp();
@@ -526,13 +615,14 @@ $('menuToggle').addEventListener('click', () => setSidebarOpen(!document.querySe
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setSidebarOpen(false); });
 $('loginBtn').addEventListener('click', () => state.authMode === 'register' ? openAuth('login') : login());
 $('registerBtn').addEventListener('click', () => state.authMode === 'register' ? register() : openAuth('register'));
-$('goStep2').addEventListener('click', async () => { if (!validateStep1()) return; await loadOperationMachines(); updateSmartFields(); setStep(2); });
+$('goStep2').addEventListener('click', async () => { if (!validateStep1()) return; if ($('calcMode').value === 'tech_map') await loadTechMapTemplates(); else await loadOperationMachines(); updateSmartFields(); setStep(2); });
 $('backStep1').addEventListener('click', () => setStep(1));
 $('homeStep').addEventListener('click', goHome);
 $('editRows').addEventListener('click', () => setStep(2));
 $('buildRows').addEventListener('click', () => buildSmartRows());
+$('calcMode').addEventListener('change', async () => { await loadTechMapTemplates(); updateSmartFields(); updateSelectionSummary(); });
 $('operation').addEventListener('change', async () => { await loadOperationMachines(); updateSmartFields(); });
-$('crop').addEventListener('change', updateSmartFields);
+$('crop').addEventListener('change', async () => { await loadTechMapTemplates(); updateSmartFields(); });
 $('machine').addEventListener('change', updateMachineFields);
 $('machineUsage').addEventListener('change', updateMachineFields);
 $('federalDistrict').addEventListener('change', async () => { await loadPrices(); renderRows(); updateMetrics(); updateSelectionSummary(); });
