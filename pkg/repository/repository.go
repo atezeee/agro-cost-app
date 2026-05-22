@@ -218,6 +218,17 @@ func (r *Repository) EnsureRuntimeSchema(ctx context.Context) error {
 		`UPDATE operations SET requires_crop=true, resource_material_type='seed', resource_title='Семенной материал' WHERE name='Посев'`,
 		`UPDATE operations SET requires_crop=true, resource_material_type='fertilizer', resource_title='Удобрение' WHERE name='Внесение удобрений'`,
 		`UPDATE operations SET requires_crop=true, resource_material_type='pesticide', resource_title='Средство защиты растений' WHERE name='Обработка СЗР'`,
+		`INSERT INTO materials(name, material_type, unit_id, default_price)
+		 SELECT v.name, v.material_type, u.id, v.default_price
+		 FROM (VALUES
+			('Семена сои','seed','кг',95::numeric),
+			('Семена гороха','seed','кг',55::numeric),
+			('Семена рапса','seed','кг',240::numeric),
+			('Семена овса','seed','кг',30::numeric),
+			('Семена сахарной свёклы','seed','кг',520::numeric)
+		 ) AS v(name, material_type, unit_code, default_price)
+		 JOIN units u ON u.short_name=v.unit_code
+		 ON CONFLICT(name) DO UPDATE SET material_type=EXCLUDED.material_type, unit_id=EXCLUDED.unit_id, default_price=EXCLUDED.default_price`,
 		`INSERT INTO cost_items(name, description) VALUES ('Амортизация','Доля стоимости собственной техники'),('Ремонт','Ремонт собственной техники'),('Техническое обслуживание','ТО собственной техники') ON CONFLICT(name) DO NOTHING`,
 		`INSERT INTO condition_coefficients(group_code, group_name, name, value, description) VALUES
 			('moisture','Влажность','Нормальная влажность',1.00,'Базовые условия работы'),
@@ -238,12 +249,15 @@ func (r *Repository) EnsureRuntimeSchema(ctx context.Context) error {
 		 ON CONFLICT(group_code, name) DO UPDATE SET group_name=EXCLUDED.group_name, value=EXCLUDED.value, description=EXCLUDED.description`,
 		`INSERT INTO norms(crop_id, operation_id, material_id, rate, unit_id, material_type)
 		 SELECT c.id, o.id, m.id,
-			CASE WHEN m.name='Семена пшеницы' THEN 180 WHEN m.name='Семена ячменя' THEN 170 WHEN m.name='Семена подсолнечника' THEN 7 WHEN m.name='Семена кукурузы' THEN 25 WHEN m.name='Аммиачная селитра' THEN 100 WHEN m.name='Гербицид' THEN 1.2 ELSE 0 END,
+			CASE WHEN m.name='Семена пшеницы' THEN 180 WHEN m.name='Семена ячменя' THEN 170 WHEN m.name='Семена подсолнечника' THEN 7 WHEN m.name='Семена кукурузы' THEN 25 WHEN m.name='Семена сои' THEN 75 WHEN m.name='Семена гороха' THEN 220 WHEN m.name='Семена рапса' THEN 6 WHEN m.name='Семена овса' THEN 160 WHEN m.name='Семена сахарной свёклы' THEN 4 WHEN m.name='Аммиачная селитра' THEN 100 WHEN m.name='Гербицид' THEN 1.2 ELSE 0 END,
 			m.unit_id, m.material_type
 		 FROM (VALUES
 			('Пшеница','Посев','Семена пшеницы'),('Ячмень','Посев','Семена ячменя'),('Подсолнечник','Посев','Семена подсолнечника'),('Кукуруза','Посев','Семена кукурузы'),
+			('Соя','Посев','Семена сои'),('Горох','Посев','Семена гороха'),('Рапс','Посев','Семена рапса'),('Овёс','Посев','Семена овса'),('Сахарная свёкла','Посев','Семена сахарной свёклы'),
 			('Пшеница','Внесение удобрений','Аммиачная селитра'),('Ячмень','Внесение удобрений','Аммиачная селитра'),('Подсолнечник','Внесение удобрений','Аммиачная селитра'),('Кукуруза','Внесение удобрений','Аммиачная селитра'),
-			('Пшеница','Обработка СЗР','Гербицид'),('Ячмень','Обработка СЗР','Гербицид'),('Подсолнечник','Обработка СЗР','Гербицид'),('Кукуруза','Обработка СЗР','Гербицид')
+			('Соя','Внесение удобрений','Аммиачная селитра'),('Горох','Внесение удобрений','Аммиачная селитра'),('Рапс','Внесение удобрений','Аммиачная селитра'),('Овёс','Внесение удобрений','Аммиачная селитра'),('Сахарная свёкла','Внесение удобрений','Аммиачная селитра'),
+			('Пшеница','Обработка СЗР','Гербицид'),('Ячмень','Обработка СЗР','Гербицид'),('Подсолнечник','Обработка СЗР','Гербицид'),('Кукуруза','Обработка СЗР','Гербицид'),
+			('Соя','Обработка СЗР','Гербицид'),('Горох','Обработка СЗР','Гербицид'),('Рапс','Обработка СЗР','Гербицид'),('Овёс','Обработка СЗР','Гербицид'),('Сахарная свёкла','Обработка СЗР','Гербицид')
 		 ) AS v(crop_name, operation_name, material_name)
 		 JOIN crops c ON c.name=v.crop_name JOIN operations o ON o.name=v.operation_name JOIN materials m ON m.name=v.material_name
 		 ON CONFLICT(crop_id, operation_id, material_id) DO UPDATE SET rate=EXCLUDED.rate, unit_id=EXCLUDED.unit_id, material_type=EXCLUDED.material_type`,
@@ -257,7 +271,7 @@ func (r *Repository) EnsureRuntimeSchema(ctx context.Context) error {
 			('Уборка урожая',100,'Уборка',true,1.0::numeric),('Транспортировка урожая',110,'Логистика',false,1.0::numeric)
 		 ) AS v(operation_name, sort_order, phase, is_required, area_factor) ON true
 		 JOIN operations o ON o.name=v.operation_name
-		 WHERE c.name IN ('Пшеница','Ячмень','Кукуруза','Подсолнечник')
+		 WHERE c.name IN ('Пшеница','Ячмень','Кукуруза','Подсолнечник','Соя','Горох','Рапс','Овёс','Сахарная свёкла')
 		 ON CONFLICT(crop_id, operation_id) DO UPDATE SET sort_order=EXCLUDED.sort_order, phase=EXCLUDED.phase, is_required=EXCLUDED.is_required, area_factor=EXCLUDED.area_factor`,
 		`UPDATE price_sources SET is_active=false WHERE name NOT IN ('Benzup — средние цены топлива по регионам','Демонстрационный CSV')`,
 		`UPDATE price_sources SET priority=1, is_active=true, parser_type='benzup_index_region', source_type='internet', category='fuel', url='https://benzup.ru/index-region', note='Основной источник цены дизельного топлива: таблица Benzup index-region, колонка ДТ, значения агрегируются до федеральных округов' WHERE name='Benzup — средние цены топлива по регионам'`,
@@ -268,6 +282,41 @@ func (r *Repository) EnsureRuntimeSchema(ctx context.Context) error {
 		`INSERT INTO price_sources(name, source_type, category, parser_type, url, note, priority, is_active)
 		 VALUES ('Демонстрационный CSV','local_csv','mixed','csv','builtin:regional_prices','Резервная ценовая база для остальных ресурсов и случаев, когда внешний источник недоступен',99,true)
 		 ON CONFLICT (name) DO UPDATE SET source_type=EXCLUDED.source_type, category=EXCLUDED.category, parser_type=EXCLUDED.parser_type, url=EXCLUDED.url, note=EXCLUDED.note, priority=EXCLUDED.priority, is_active=true`,
+		`INSERT INTO price_snapshots(material_id, federal_district_id, region_id, source_id, price, unit_id, effective_date, status, source_url)
+		 SELECT m.id, fd.id, NULL, ps.id, ROUND((v.price * fdv.factor)::numeric, 2), u.id, CURRENT_DATE, 'validated', 'runtime_seed_fd'
+		 FROM (VALUES
+			('Дизельное топливо',68.40,'л'),
+			('Семена пшеницы',37.50,'кг'),
+			('Семена ячменя',32.00,'кг'),
+			('Семена подсолнечника',185.00,'кг'),
+			('Семена кукурузы',210.00,'кг'),
+			('Семена сои',95.00,'кг'),
+			('Семена гороха',55.00,'кг'),
+			('Семена рапса',240.00,'кг'),
+			('Семена овса',30.00,'кг'),
+			('Семена сахарной свёклы',520.00,'кг'),
+			('Аммиачная селитра',32.80,'кг'),
+			('Карбамид',42.00,'кг'),
+			('Азофоска NPK',45.00,'кг'),
+			('Гербицид',920.00,'л'),
+			('Фунгицид',1300.00,'л'),
+			('Инсектицид',1100.00,'л'),
+			('Труд механизатора',450.00,'ч'),
+			('Машино-час',1200.00,'ч'),
+			('Аренда техники',1800.00,'ч')
+		 ) AS v(material, price, unit_code)
+		 CROSS JOIN (VALUES
+			('ЦФО',1.03::numeric),('ЮФО',1.00::numeric),('СКФО',0.98::numeric),('ПФО',0.99::numeric),('СЗФО',1.05::numeric),
+			('УФО',1.04::numeric),('СФО',1.06::numeric),('ДФО',1.12::numeric),('НР',1.07::numeric)
+		 ) AS fdv(code, factor)
+		 JOIN federal_districts fd ON fd.code=fdv.code
+		 JOIN materials m ON m.name=v.material
+		 JOIN units u ON u.short_name=v.unit_code
+		 JOIN price_sources ps ON ps.name='Демонстрационный CSV'
+		 WHERE NOT EXISTS (
+			SELECT 1 FROM price_snapshots existing
+			WHERE existing.material_id=m.id AND existing.federal_district_id=fd.id AND existing.region_id IS NULL AND existing.source_id=ps.id
+		 )`,
 		`INSERT INTO machines(name, machine_type, cost_per_hour, rent_cost_per_hour) VALUES
 		 ('Трактор МТЗ-1221','трактор',1550,2350),
 		 ('Трактор Кировец К-744Р4','трактор',2950,4300),
@@ -849,6 +898,19 @@ func (r *Repository) MachineByID(ctx context.Context, id int64) (models.Director
 		return m, nil
 	}
 	err := r.DB.QueryRowContext(ctx, `SELECT id, name, COALESCE(machine_type,''), COALESCE(cost_per_hour,0), COALESCE(rent_cost_per_hour,0), 0::bigint, ''::text, 0::numeric, 0::numeric FROM machines WHERE id=$1`, id).
+		Scan(&m.ID, &m.Name, &m.Description, &m.DefaultPrice, &m.RentPrice, &m.UnitID, &m.Role, &m.Productivity, &m.FuelRate)
+	if err == sql.ErrNoRows {
+		return models.DirectoryItem{}, nil
+	}
+	return m, err
+}
+
+func (r *Repository) MaterialByID(ctx context.Context, id int64) (models.DirectoryItem, error) {
+	var m models.DirectoryItem
+	if id <= 0 {
+		return m, nil
+	}
+	err := r.DB.QueryRowContext(ctx, `SELECT id, name, COALESCE(material_type,''), COALESCE(default_price,0), 0::numeric, COALESCE(unit_id,0), ''::text, 0::numeric, 0::numeric FROM materials WHERE id=$1`, id).
 		Scan(&m.ID, &m.Name, &m.Description, &m.DefaultPrice, &m.RentPrice, &m.UnitID, &m.Role, &m.Productivity, &m.FuelRate)
 	if err == sql.ErrNoRows {
 		return models.DirectoryItem{}, nil

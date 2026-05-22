@@ -100,19 +100,24 @@ button.danger {
   display: grid;
   place-items: center;
   flex: 0 0 52px;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #f3c46b, var(--wheat));
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.35), 0 14px 28px rgba(0,0,0,.18);
+  border-radius: 16px;
+  background: radial-gradient(circle at 72% 24%, #f6d483 0 13%, transparent 14%),
+              linear-gradient(145deg, #0f4b34, #072d22);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 14px 28px rgba(0,0,0,.22);
 }
 .brand-mark svg {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   fill: none;
-  stroke: #18331f;
-  stroke-width: 2.8;
+  stroke: #f7d47c;
+  stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.brand-mark .logo-horizon { stroke: rgba(255,255,255,.74); stroke-width: 2.1; }
+.brand-mark .logo-pin { stroke: #ffffff; stroke-width: 2.4; }
+.brand-mark .logo-sun { stroke: #f7d47c; }
+.brand-mark .logo-row { stroke: #f7d47c; }
 .brand strong {
   display: block;
   font-size: 24px;
@@ -331,6 +336,22 @@ button.danger {
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
   gap: 18px;
   align-items: start;
+}
+.premium-smart.tech-map-active {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, .6fr);
+}
+.premium-smart.tech-map-active > .inner-card.elevated:first-child {
+  grid-column: 1;
+  grid-row: 1;
+}
+.premium-smart.tech-map-active #techMapCard {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.premium-smart.tech-map-active .smart-sidebar {
+  grid-column: 1;
+  grid-row: 2;
 }
 .selection-summary, .smart-sidebar { display: grid; gap: 14px; }
 .summary-card, .inner-card { padding: 18px; }
@@ -625,6 +646,12 @@ tfoot td { background: #f6f0e4; font-weight: 900; }
 
 @media (max-width: 1280px) {
   .hero-strip, .step-layout, .smart-layout, .settings-grid { grid-template-columns: 1fr; }
+  .premium-smart.tech-map-active > .inner-card.elevated:first-child,
+  .premium-smart.tech-map-active #techMapCard,
+  .premium-smart.tech-map-active .smart-sidebar {
+    grid-column: auto;
+    grid-row: auto;
+  }
   .hero-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 

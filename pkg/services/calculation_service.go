@@ -326,17 +326,25 @@ func (s *CalculationService) Calculate(ctx context.Context, req models.Calculati
 				return result, fmt.Errorf("строка %d: ошибка получения цены: %w", i+1, err)
 			}
 			if latest == nil {
-				return result, fmt.Errorf("строка %d: нет цены для выбранного федерального округа, укажите цену вручную", i+1)
-			}
-			price = latest.Price
-			id := latest.ID
-			priceID = &id
-			priceSource = latest.SourceName
-			priceRegion = latest.RegionName
-			priceDate = latest.EffectiveDate.Format("2006-01-02")
-			sourceURL = latest.SourceURL
-			if priceRegion == "" {
-				priceRegion = latest.FederalDistrict
+				material, err := s.materialDefaultPrice(ctx, input.MaterialID)
+				if err != nil {
+					return result, fmt.Errorf("строка %d: %w", i+1, err)
+				}
+				price = material.DefaultPrice
+				priceSource = "справочник материалов"
+				priceRegion = "базовая цена"
+				priceDate = DateString(calcDate)
+			} else {
+				price = latest.Price
+				id := latest.ID
+				priceID = &id
+				priceSource = latest.SourceName
+				priceRegion = latest.RegionName
+				priceDate = latest.EffectiveDate.Format("2006-01-02")
+				sourceURL = latest.SourceURL
+				if priceRegion == "" {
+					priceRegion = latest.FederalDistrict
+				}
 			}
 		}
 
@@ -394,6 +402,17 @@ func (s *CalculationService) Calculate(ctx context.Context, req models.Calculati
 
 func DateString(t time.Time) string {
 	return t.Format("2006-01-02")
+}
+
+func (s *CalculationService) materialDefaultPrice(ctx context.Context, materialID int64) (models.DirectoryItem, error) {
+	material, err := s.Repo.MaterialByID(ctx, materialID)
+	if err != nil {
+		return models.DirectoryItem{}, fmt.Errorf("ошибка получения материала: %w", err)
+	}
+	if material.ID == 0 || material.DefaultPrice <= 0 {
+		return models.DirectoryItem{}, fmt.Errorf("нет цены для выбранного федерального округа, укажите цену вручную")
+	}
+	return material, nil
 }
 
 func calculationDate(value string) time.Time {
@@ -463,6 +482,12 @@ func (s *CalculationService) calculateTotalForUsage(ctx context.Context, req mod
 			}
 			if latest != nil {
 				price = latest.Price
+			} else {
+				material, err := s.materialDefaultPrice(ctx, input.MaterialID)
+				if err != nil {
+					return 0, err
+				}
+				price = material.DefaultPrice
 			}
 		}
 		total += req.AreaHa * areaFactor * input.Rate * coef * price

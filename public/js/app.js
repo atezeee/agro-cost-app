@@ -308,6 +308,7 @@ function updateSmartFields() {
 function updateModeUI() {
   const isTechMap = $('calcMode')?.value === 'tech_map';
   document.querySelectorAll('.operation-mode-only').forEach(x => x.classList.toggle('hide', isTechMap));
+  document.querySelector('.smart-layout')?.classList.toggle('tech-map-active', isTechMap);
   $('techMapCard')?.classList.toggle('hide', !isTechMap);
   renderTechMapTemplates();
 }
@@ -602,6 +603,8 @@ async function init() {
 }
 
 document.addEventListener('click', (e) => {
+  const historyBtn = e.target.closest('#historyShortcut');
+  if (historyBtn) { e.preventDefault(); location.hash = 'history'; setView('history'); return; }
   const viewBtn = e.target.closest('[data-view]'); if (viewBtn) { const view = viewBtn.dataset.view; location.hash = view; setView(view); setSidebarOpen(false); }
   const closeBtn = e.target.closest('[data-close]'); if (closeBtn) closeModal(closeBtn.dataset.close);
   if (e.target.classList.contains('modal')) closeModal(e.target.id);
@@ -627,5 +630,5 @@ $('machine').addEventListener('change', updateMachineFields);
 $('machineUsage').addEventListener('change', updateMachineFields);
 $('federalDistrict').addEventListener('change', async () => { await loadPrices(); renderRows(); updateMetrics(); updateSelectionSummary(); });
 $('area').addEventListener('input', () => { renderRows(); updateMetrics(); updateSelectionSummary(); });
-$('historyShortcut').addEventListener('click', () => { location.hash = 'history'; setView('history'); });
+$('historyShortcut')?.addEventListener('click', () => { location.hash = 'history'; setView('history'); });
 init();

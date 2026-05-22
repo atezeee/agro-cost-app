@@ -570,6 +570,21 @@ INSERT INTO materials(name, material_type, unit_id, default_price)
 SELECT 'Семена кукурузы', 'seed', id, 210 FROM units WHERE short_name='кг'
 ON CONFLICT(name) DO NOTHING;
 INSERT INTO materials(name, material_type, unit_id, default_price)
+SELECT 'Семена сои', 'seed', id, 95 FROM units WHERE short_name='кг'
+ON CONFLICT(name) DO NOTHING;
+INSERT INTO materials(name, material_type, unit_id, default_price)
+SELECT 'Семена гороха', 'seed', id, 55 FROM units WHERE short_name='кг'
+ON CONFLICT(name) DO NOTHING;
+INSERT INTO materials(name, material_type, unit_id, default_price)
+SELECT 'Семена рапса', 'seed', id, 240 FROM units WHERE short_name='кг'
+ON CONFLICT(name) DO NOTHING;
+INSERT INTO materials(name, material_type, unit_id, default_price)
+SELECT 'Семена овса', 'seed', id, 30 FROM units WHERE short_name='кг'
+ON CONFLICT(name) DO NOTHING;
+INSERT INTO materials(name, material_type, unit_id, default_price)
+SELECT 'Семена сахарной свёклы', 'seed', id, 520 FROM units WHERE short_name='кг'
+ON CONFLICT(name) DO NOTHING;
+INSERT INTO materials(name, material_type, unit_id, default_price)
 SELECT 'Карбамид', 'fertilizer', id, 42 FROM units WHERE short_name='кг'
 ON CONFLICT(name) DO NOTHING;
 INSERT INTO materials(name, material_type, unit_id, default_price)
@@ -631,6 +646,11 @@ FROM (VALUES
     ('Семена ячменя', 32.00, 'кг'),
     ('Семена подсолнечника', 185.00, 'кг'),
     ('Семена кукурузы', 210.00, 'кг'),
+    ('Семена сои', 95.00, 'кг'),
+    ('Семена гороха', 55.00, 'кг'),
+    ('Семена рапса', 240.00, 'кг'),
+    ('Семена овса', 30.00, 'кг'),
+    ('Семена сахарной свёклы', 520.00, 'кг'),
     ('Карбамид', 42.00, 'кг'),
     ('Азофоска NPK', 45.00, 'кг'),
     ('Фунгицид', 1300.00, 'л'),
@@ -645,7 +665,7 @@ CROSS JOIN (VALUES
     ('УФО', 1.04::numeric),
     ('СФО', 1.06::numeric),
     ('ДФО', 1.12::numeric),
-    ('Новые территории', 1.07::numeric)
+    ('НР', 1.07::numeric)
 ) AS fdv(code, factor)
 JOIN federal_districts fd ON fd.code = fdv.code
 JOIN materials m ON m.name = v.material
@@ -740,6 +760,11 @@ SELECT c.id, o.id, m.id,
            WHEN m.name='Семена ячменя' THEN 170
            WHEN m.name='Семена подсолнечника' THEN 7
            WHEN m.name='Семена кукурузы' THEN 25
+           WHEN m.name='Семена сои' THEN 75
+           WHEN m.name='Семена гороха' THEN 220
+           WHEN m.name='Семена рапса' THEN 6
+           WHEN m.name='Семена овса' THEN 160
+           WHEN m.name='Семена сахарной свёклы' THEN 4
            WHEN m.name='Аммиачная селитра' THEN 100
            WHEN m.name='Гербицид' THEN 1.2
            ELSE 0
@@ -751,14 +776,29 @@ FROM (VALUES
     ('Ячмень','Посев','Семена ячменя'),
     ('Подсолнечник','Посев','Семена подсолнечника'),
     ('Кукуруза','Посев','Семена кукурузы'),
+    ('Соя','Посев','Семена сои'),
+    ('Горох','Посев','Семена гороха'),
+    ('Рапс','Посев','Семена рапса'),
+    ('Овёс','Посев','Семена овса'),
+    ('Сахарная свёкла','Посев','Семена сахарной свёклы'),
     ('Пшеница','Внесение удобрений','Аммиачная селитра'),
     ('Ячмень','Внесение удобрений','Аммиачная селитра'),
     ('Подсолнечник','Внесение удобрений','Аммиачная селитра'),
     ('Кукуруза','Внесение удобрений','Аммиачная селитра'),
+    ('Соя','Внесение удобрений','Аммиачная селитра'),
+    ('Горох','Внесение удобрений','Аммиачная селитра'),
+    ('Рапс','Внесение удобрений','Аммиачная селитра'),
+    ('Овёс','Внесение удобрений','Аммиачная селитра'),
+    ('Сахарная свёкла','Внесение удобрений','Аммиачная селитра'),
     ('Пшеница','Обработка СЗР','Гербицид'),
     ('Ячмень','Обработка СЗР','Гербицид'),
     ('Подсолнечник','Обработка СЗР','Гербицид'),
-    ('Кукуруза','Обработка СЗР','Гербицид')
+    ('Кукуруза','Обработка СЗР','Гербицид'),
+    ('Соя','Обработка СЗР','Гербицид'),
+    ('Горох','Обработка СЗР','Гербицид'),
+    ('Рапс','Обработка СЗР','Гербицид'),
+    ('Овёс','Обработка СЗР','Гербицид'),
+    ('Сахарная свёкла','Обработка СЗР','Гербицид')
 ) AS v(crop_name, operation_name, material_name)
 JOIN crops c ON c.name=v.crop_name
 JOIN operations o ON o.name=v.operation_name
@@ -782,5 +822,5 @@ JOIN (VALUES
     ('Транспортировка урожая',110,'Логистика',false,1.0::numeric)
 ) AS v(operation_name, sort_order, phase, is_required, area_factor) ON true
 JOIN operations o ON o.name=v.operation_name
-WHERE c.name IN ('Пшеница','Ячмень','Кукуруза','Подсолнечник')
+WHERE c.name IN ('Пшеница','Ячмень','Кукуруза','Подсолнечник','Соя','Горох','Рапс','Овёс','Сахарная свёкла')
 ON CONFLICT(crop_id, operation_id) DO UPDATE SET sort_order=EXCLUDED.sort_order, phase=EXCLUDED.phase, is_required=EXCLUDED.is_required, area_factor=EXCLUDED.area_factor;
