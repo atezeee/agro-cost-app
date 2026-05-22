@@ -3,34 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AgroCalc — расчёт стоимости агротехнических работ</title>
+  <title>ПолеПлан — расчёт технологических карт и затрат</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <a class="brand" href="#calculations" data-view="calculations">
-        <span class="brand-mark">☘</span>
-        <span><strong>AgroCalc</strong><small>Расчёт затрат на агротехнические работы</small></span>
+      <a class="brand" href="#calculations" data-view="calculations" aria-label="ПолеПлан">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <path d="M8 33.5c9.8-2.4 19.8-2.4 30 0" />
+            <path d="M12 26.5c7.4-1.8 15.6-1.8 23 0" />
+            <path d="M17 19.5c4.9-1.1 9.7-1.1 14.5 0" />
+            <path d="M24 10v27" />
+            <path d="M24 10c5.8 2.2 10.2 6 13 11.5" />
+            <path d="M24 10c-5.8 2.2-10.2 6-13 11.5" />
+          </svg>
+        </span>
+        <span><strong>ПолеПлан</strong><small>Техкарты, техника и себестоимость работ</small></span>
       </a>
       <nav class="side-nav">
-        <a class="nav-link active" href="#calculations" data-view="calculations"><span>▦</span>Расчёт</a>
-        <a class="nav-link" href="#history" data-view="history"><span>◴</span>История расчётов</a>
-        <a class="nav-link" href="#settings" data-view="settings"><span>⚙</span>Настройки</a>
+        <a class="nav-link active" href="#calculations" data-view="calculations"><span>01</span>Расчёт</a>
+        <a class="nav-link" href="#history" data-view="history"><span>02</span>История</a>
+        <a class="nav-link" href="#settings" data-view="settings"><span>03</span>Настройки</a>
       </nav>
       <div class="side-note">
-        <strong>Актуальные цены</strong>
-        <p>Дизельное топливо подбирается автоматически по выбранному федеральному округу.</p>
+        <strong>Цены с источниками</strong>
+        <p>В отчётах видны дата цены, источник и разница между собственной техникой и арендой.</p>
       </div>
-      <a class="help-link" href="#help" data-view="help"><span>?</span>Справка</a>
+      <a class="help-link" href="#help" data-view="help"><span>?</span>Помощь</a>
     </aside>
 
     <div class="workspace">
       <header class="topbar">
         <button class="icon-button menu-toggle" id="menuToggle" aria-label="Меню">☰</button>
         <div>
-          <h1 id="pageTitle">Расчёт стоимости агротехнических работ</h1>
-          <p id="pageSubtitle">Интуитивный пошаговый расчёт по федеральному округу, операции и технике</p>
+          <h1 id="pageTitle">Расчёт технологических карт</h1>
+          <p id="pageSubtitle">Планирование затрат по культуре, технике, нормам и условиям работы</p>
         </div>
         <div class="top-actions" id="authActions">
           <button class="outline compact" id="openLogin">Вход</button>
@@ -42,14 +51,14 @@
         <section class="view active" id="view-calculations">
           <div class="hero-strip">
             <div class="hero-main">
-              <small>AgroCalc</small>
-              <h2>Быстрый расчёт себестоимости агротехнической операции</h2>
-              <p>Сервис сам подставляет характеристики техники, нормы топлива и необходимые параметры для выбранной работы. Пользователь вводит только действительно важные данные.</p>
+              <small>ПолеПлан</small>
+              <h2>Соберите расчёт поля от операции до полной техкарты</h2>
+              <p>Выберите культуру, площадь и технику. Сервис подставит нормы, коэффициенты условий, цены и покажет структуру затрат без ручной сборки таблиц.</p>
             </div>
             <div class="hero-facts">
-              <div><small>Режим</small><strong>Пошаговый мастер</strong></div>
-              <div><small>География</small><strong>Федеральные округа РФ</strong></div>
-              <div><small>Источник цены ДТ</small><strong>Benzup</strong></div>
+              <div><small>Режим</small><strong>Операция или техкарта</strong></div>
+              <div><small>Техника</small><strong>Своя / аренда</strong></div>
+              <div><small>Контроль</small><strong>Источник и дата цены</strong></div>
             </div>
           </div>
 
@@ -121,7 +130,7 @@
                       <h3>Техника и параметры выполнения</h3>
                       <p>Выберите подходящую машину. Производительность и норма топлива подставляются автоматически из справочника.</p>
                     </div>
-                    <span class="section-badge">Автоподстановка</span>
+                    <span class="section-badge">Справочник</span>
                   </div>
                   <div class="step-grid compact-grid premium-compact-grid">
                     <label class="field-card"><span>Основная техника</span><select id="machine"></select></label>
@@ -187,11 +196,11 @@
               <div class="dashboard-grid compact-dashboard premium-dashboard">
                 <article class="panel result-card slim premium-result">
                   <div class="metric primary"><span>₽</span><div><small>Общая стоимость</small><strong id="metricTotal">0 руб.</strong></div></div>
-                  <div class="metric"><span>▦</span><div><small>Стоимость на 1 га</small><strong id="metricPerHa">0 руб./га</strong></div></div>
+                  <div class="metric"><span>га</span><div><small>Стоимость на 1 га</small><strong id="metricPerHa">0 руб./га</strong></div></div>
                 </article>
                 <article class="panel result-card slim premium-result">
-                  <div class="metric"><span>☷</span><div><small>Строк расчёта</small><strong id="metricRows">0</strong></div></div>
-                  <div class="metric status-ok"><span>✓</span><div><small>Статус</small><strong id="metricStatus">Готов к расчёту</strong></div></div>
+                  <div class="metric"><span>Σ</span><div><small>Строк расчёта</small><strong id="metricRows">0</strong></div></div>
+                  <div class="metric status-ok"><span>OK</span><div><small>Статус</small><strong id="metricStatus">Готов к расчёту</strong></div></div>
                 </article>
               </div>
               <article class="panel table-panel embedded premium-table-panel">
