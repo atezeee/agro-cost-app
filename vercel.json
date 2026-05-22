@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.go", "use": "@vercel/go" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.go" },
+    { "src": "/healthz", "dest": "/api/index.go" },
+    { "src": "/css/(.*)", "dest": "/public/css/$1" },
+    { "src": "/js/(.*)", "dest": "/public/js/$1" },
+    { "src": "/(.*)", "dest": "/public/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/parse-prices",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "env": {
+    "GOFLAGS": "-mod=mod",
+    "STATIC_DIR": "public",
+    "HH_AREA_ID": "24",
+    "HH_QUERY": "механизатор тракторист машинист сельскохозяйственный",
+    "HH_USER_AGENT": "AgroCalc/1.0 (contact: replace-with-real-email)"
+  }
+}

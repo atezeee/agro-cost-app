@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgroCalc — расчёт стоимости агротехнических работ</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#calculations" data-view="calculations">
+        <span class="brand-mark">☘</span>
+        <span><strong>AgroCalc</strong><small>Расчёт затрат на агротехнические работы</small></span>
+      </a>
+      <nav class="side-nav">
+        <a class="nav-link active" href="#calculations" data-view="calculations"><span>▦</span>Расчёт</a>
+        <a class="nav-link" href="#history" data-view="history"><span>◴</span>История расчётов</a>
+        <a class="nav-link" href="#settings" data-view="settings"><span>⚙</span>Настройки</a>
+      </nav>
+      <div class="side-note">
+        <strong>Актуальные цены</strong>
+        <p>Дизельное топливо подбирается автоматически по выбранному федеральному округу.</p>
+      </div>
+      <a class="help-link" href="#help" data-view="help"><span>?</span>Справка</a>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button menu-toggle" id="menuToggle" aria-label="Меню">☰</button>
+        <div>
+          <h1 id="pageTitle">Расчёт стоимости агротехнических работ</h1>
+          <p id="pageSubtitle">Интуитивный пошаговый расчёт по федеральному округу, операции и технике</p>
+        </div>
+        <div class="top-actions" id="authActions">
+          <button class="outline compact" id="openLogin">Вход</button>
+          <button class="compact" id="openRegister">Регистрация</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="view active" id="view-calculations">
+          <div class="hero-strip">
+            <div class="hero-main">
+              <small>AgroCalc</small>
+              <h2>Быстрый расчёт себестоимости агротехнической операции</h2>
+              <p>Сервис сам подставляет характеристики техники, нормы топлива и необходимые параметры для выбранной работы. Пользователь вводит только действительно важные данные.</p>
+            </div>
+            <div class="hero-facts">
+              <div><small>Режим</small><strong>Пошаговый мастер</strong></div>
+              <div><small>География</small><strong>Федеральные округа РФ</strong></div>
+              <div><small>Источник цены ДТ</small><strong>Benzup</strong></div>
+            </div>
+          </div>
+
+          <div class="wizard-card panel">
+            <div class="wizard-steps">
+              <div class="step active" data-step-indicator="1"><span>1</span>Параметры</div>
+              <div class="line"></div>
+              <div class="step" data-step-indicator="2"><span>2</span>Данные работы</div>
+              <div class="line"></div>
+              <div class="step" data-step-indicator="3"><span>3</span>Результат</div>
+            </div>
+
+            <div class="wizard-screen active" id="step1">
+              <div class="step-layout">
+                <article class="step-form-card">
+                  <div class="panel-head wide">
+                    <div>
+                      <h2>Основные параметры расчёта</h2>
+                      <p>Выберите агротехническую работу, площадь и федеральный округ. Поле культуры показывается только для тех операций, где оно действительно влияет на расчёт.</p>
+                    </div>
+                  </div>
+                  <div class="step-grid premium-grid">
+                    <label class="field-card"><span>Агротехническая работа</span><select id="operation"></select></label>
+                    <label class="field-card"><span>Площадь, га</span><input id="area" type="number" value="100" min="0" step="0.01"></label>
+                    <label class="field-card"><span>Федеральный округ</span><select id="federalDistrict"></select></label>
+                    <label class="field-card" id="cropFieldWrap"><span>Культура</span><select id="crop"></select></label>
+                    <label class="field-card"><span>Дата расчёта</span><input id="calcDate" type="date"></label>
+                  </div>
+                  <div class="actions-row right"><button id="goStep2">Продолжить</button></div>
+                </article>
+
+                <aside class="selection-summary">
+                  <div class="summary-card accent">
+                    <small>Интеллектуальный подбор</small>
+                    <h3 id="summaryOperationName">Выберите операцию</h3>
+                    <p id="summaryOperationDescription">После выбора операции сервис покажет только релевантные параметры.</p>
+                  </div>
+                  <div class="summary-card">
+                    <div class="summary-item"><small>Федеральный округ</small><strong id="summaryFD">—</strong></div>
+                    <div class="summary-item"><small>Площадь</small><strong id="summaryArea">100 га</strong></div>
+                    <div class="summary-item"><small>Культура</small><strong id="summaryCrop">По необходимости</strong></div>
+                  </div>
+                  <div class="summary-card soft">
+                    <h4>Что подставляется автоматически</h4>
+                    <ul class="smart-list">
+                      <li>популярная техника для выбранной работы;</li>
+                      <li>производительность, л/га и га/ч;</li>
+                      <li>статьи затрат по топливу, труду и технике;</li>
+                      <li>цена дизельного топлива по федеральному округу.</li>
+                    </ul>
+                  </div>
+                </aside>
+              </div>
+            </div>
+
+            <div class="wizard-screen" id="step2">
+              <div class="panel-head wide">
+                <div>
+                  <h2 id="workDataTitle">Исходные данные по работе</h2>
+                  <p id="workDataSubtitle">Поля сформированы под выбранную операцию. Основные параметры техники подставляются автоматически, но их можно уточнить.</p>
+                </div>
+              </div>
+
+              <div class="smart-layout premium-smart">
+                <article class="inner-card elevated">
+                  <div class="card-title-row">
+                    <div>
+                      <h3>Техника и параметры выполнения</h3>
+                      <p>Выберите подходящую машину. Производительность и норма топлива подставляются автоматически из справочника.</p>
+                    </div>
+                    <span class="section-badge">Автоподстановка</span>
+                  </div>
+                  <div class="step-grid compact-grid premium-compact-grid">
+                    <label class="field-card"><span>Основная техника</span><select id="machine"></select></label>
+                    <label class="field-card"><span>Тип использования</span><select id="machineUsage"><option value="own">Своя техника</option><option value="rent">Аренда</option></select></label>
+                    <label class="field-card"><span>Производительность, га/ч</span><input id="productivity" type="number" min="0" step="0.01" readonly></label>
+                    <label class="field-card"><span>Норма топлива, л/га</span><input id="fuelRate" type="number" min="0" step="0.01"></label>
+                  </div>
+                  <div class="machine-note" id="machineMetaText">Подберите технику для расчёта — значения нормы топлива и производительности появятся автоматически.</div>
+                </article>
+
+                <aside class="smart-sidebar">
+                  <article class="inner-card elevated" id="resourceCard">
+                    <div class="card-title-row">
+                      <div>
+                        <h3 id="resourceTitle">Ресурс</h3>
+                        <p>Этот блок отображается только когда для выбранной операции важен дополнительный ресурс.</p>
+                      </div>
+                    </div>
+                    <div class="step-grid compact-grid one-column-grid">
+                      <label class="field-card"><span>Ресурс</span><select id="material"></select></label>
+                      <label class="field-card"><span>Норма расхода</span><input id="resourceRate" type="number" min="0" step="0.01"></label>
+                      <label class="field-card"><span>Коэффициент условий</span><input id="coefficient" type="number" value="1" min="0" step="0.01"></label>
+                      <label class="field-card"><span>Цена вручную</span><input id="manualPrice" type="number" placeholder="необязательно" min="0" step="0.01"></label>
+                    </div>
+                  </article>
+
+                  <article class="inner-card soft-card">
+                    <h3>Сводка параметров</h3>
+                    <div class="summary-rows">
+                      <div><span>Работа</span><strong id="workSummaryOp">—</strong></div>
+                      <div><span>Округ</span><strong id="workSummaryFD">—</strong></div>
+                      <div><span>Площадь</span><strong id="workSummaryArea">—</strong></div>
+                      <div><span>Культура</span><strong id="workSummaryCrop">—</strong></div>
+                    </div>
+                  </article>
+                </aside>
+              </div>
+              <div class="actions-row between"><button class="outline" id="backStep1">Назад</button><button id="buildRows">Сформировать расчёт</button></div>
+            </div>
+
+            <div class="wizard-screen" id="step3">
+              <div class="dashboard-grid compact-dashboard premium-dashboard">
+                <article class="panel result-card slim premium-result">
+                  <div class="metric primary"><span>₽</span><div><small>Общая стоимость</small><strong id="metricTotal">0 руб.</strong></div></div>
+                  <div class="metric"><span>▦</span><div><small>Стоимость на 1 га</small><strong id="metricPerHa">0 руб./га</strong></div></div>
+                </article>
+                <article class="panel result-card slim premium-result">
+                  <div class="metric"><span>☷</span><div><small>Строк расчёта</small><strong id="metricRows">0</strong></div></div>
+                  <div class="metric status-ok"><span>✓</span><div><small>Статус</small><strong id="metricStatus">Готов к расчёту</strong></div></div>
+                </article>
+              </div>
+              <article class="panel table-panel embedded premium-table-panel">
+                <div class="panel-head wide">
+                  <div><h2>Строки расчёта</h2><p id="priceInfo">Цены подбираются по выбранному федеральному округу.</p></div>
+                  <button class="outline" id="historyShortcut">История расчётов</button>
+                </div>
+                <div id="rowsBox"></div>
+                <div class="actions-row between">
+                  <button class="outline" id="homeStep">На главную</button>
+                  <div class="button-group"><button class="outline" id="editRows">Изменить данные</button></div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-history"></section>
+        <section class="view" id="view-settings"></section>
+        <section class="view" id="view-help"></section>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal" id="authModal" aria-hidden="true">
+    <div class="modal-card auth-card">
+      <div class="modal-head"><h2 id="authTitle">Вход</h2><button class="icon-button" data-close="authModal">×</button></div>
+      <div class="auth-status" id="authStatus">Войдите или зарегистрируйтесь</div>
+      <div class="auth-grid">
+        <input id="authName" placeholder="ФИО">
+        <input id="authEmail" type="email" placeholder="Email">
+        <input id="authPassword" type="password" placeholder="Пароль">
+      </div>
+      <div class="modal-actions split"><button id="loginBtn">Войти</button><button class="outline" id="registerBtn">Зарегистрироваться</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="detailModal" aria-hidden="true">
+    <div class="modal-card detail-card">
+      <div class="modal-head"><h2>Детализация расчёта</h2><button class="icon-button" data-close="detailModal">×</button></div>
+      <div id="detailModalBody"></div>
+      <div class="modal-actions"><button class="outline" data-close="detailModal">Закрыть</button></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
