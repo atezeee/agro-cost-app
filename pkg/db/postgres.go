@@ -3,13 +3,15 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func Connect(databaseURL string) (*sql.DB, error) {
-	database, err := sql.Open("postgres", databaseURL)
+	dsn := forceSimpleProtocol(databaseURL)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -21,4 +23,17 @@ func Connect(databaseURL string) (*sql.DB, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 	return database, nil
+}
+
+func forceSimpleProtocol(databaseURL string) string {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil || parsed.Scheme == "" {
+		return databaseURL
+	}
+	q := parsed.Query()
+	if q.Get("default_query_exec_mode") == "" {
+		q.Set("default_query_exec_mode", "simple_protocol")
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
 }
